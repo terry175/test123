@@ -1,0 +1,1 @@
+$.get("/multiraid/condition/"+location.hash.split('/')[1]+"/1/0.json?t="+Date.now(),function(data){console.info(data)});

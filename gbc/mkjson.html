@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8" />
+<textarea placeholder="copy the data from excel"></textarea>
+<p><button>convert</button>
+<div>output data here</div>
+<script>
+	var elInput = document.querySelector('textarea'), elConvert = document.querySelector('button'), elOutput = document.querySelector('div');
+	elConvert.addEventListener('click',function(){
+		var textInput = elInput.value;
+		if(textInput.length==0 || !/\t/.test(textInput)){
+			alert('Not Right');
+			return;
+		}
+		var data = {}, rows = textInput.replace(/\r/g,'').split(/\n/);
+		var field = rows.shift().split(/\t/);
+		var keyField = field.shift();//not used
+		for(var i=0,l=rows.length;i<l;i++){
+			var row = rows[i];
+			var cols = row.split(/\t/);
+			if(cols.length<=1){
+				continue;
+			}
+			var key = cols.shift();
+			data[key]={};
+			for(var j=0,m=cols.length;j<m;j++){
+				if(cols[j].length==0){
+					continue;
+				}
+				data[key][ field[j] ] = cols[j].replace(/\</g,'&lt;');
+			}
+		}
+		elOutput.innerHTML = JSON.stringify(data);
+		alert('OK!');
+	},false);
+</script>

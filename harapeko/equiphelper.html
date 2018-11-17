@@ -1,0 +1,245 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>はらぺこ勇者と星の女神</title>
+<h1>はらぺこ勇者と星の女神　装備合成アシスタント</h1>
+<a style="position:fixed;right:10px;top:10px" href="https://github.com/hioggia/gts/tree/gh-pages/harapeko" target="_blank">[Source Code]</a>
+<p>つくりたい装備は：<select id="want"></select>
+<p><strong>集めできる素材：</strong>
+<p id="basic">
+<h2>かばんにある素材：[<a id="load" href="javascript:void(0)">ロード</a>]</h2>
+<p><select id="owned"></select> x<input type="number" value="1" id="num" style="width:22px" /> <button id="add">追加</button>
+<p id="bank_head" style="display:none"><strong>あなたのかばん：</strong>
+<ul id="bank_content" style="display:none"></ul>
+<p id="bank_save" style="display:none">[<a href="javascript:void(0)">セーフ</a>]
+<p><button id="show">必要モノをリスト</button>
+<h2 id="result_head" style="display:none">探し物リスト</h2>
+<p id="result">
+<h2 id="result2_head" style="display:none">使うものリスト</h2>
+<p id="result2">
+<h2 id="result3_head" style="display:none">現在作れる素材</h2>
+<p id="result3">
+<script>
+	var getJSON = function(path,callback){
+		var xhr = new XMLHttpRequest();
+		xhr.onreadystatechange = function(){
+			if(xhr.readyState == 4){
+				if(xhr.status == 200){
+					var data = JSON.parse(xhr.responseText);
+					xhr = null;
+					callback(data);
+				}else{
+					xhr = null;
+					alert('READ JSON ERROR!');
+				}
+			}
+		}
+		xhr.open('get',path,true);
+		xhr.send();
+	};
+
+	var elWant = document.querySelector('#want'), elBasic = document.querySelector('#basic'), elOwned = document.querySelector('#owned'), elNum = document.querySelector('#num'), elAdd = document.querySelector('#add'), elLoad = document.querySelector('#load'), elBankHead = document.querySelector('#bank_head'), elBank = document.querySelector('#bank_content'), elBankSave = document.querySelector('#bank_save'), elShow = document.querySelector('#show'), elResultHead = document.querySelector('#result_head'), elResult = document.querySelector('#result'), elResult2Head = document.querySelector('#result2_head'), elResult2 = document.querySelector('#result2'), elResult3Head = document.querySelector('#result3_head'), elResult3 = document.querySelector('#result3');
+
+	var addBasical = function(material,isChecked,isReadonly){
+		var label = document.createElement('label'), htw = '';
+		htw = '<input type="checkbox"';
+		if(isChecked){
+			htw += ' checked="checked"';
+		}
+		if(isReadonly){
+			htw += ' disabled="disabled"';
+		}
+		label.innerHTML = htw+' /> '+material;
+		label.dataset.ma = material;
+		//if(material in dropItems){
+			label.title = dropItems[material].join(', ');
+		//}
+		elBasic.appendChild(label);
+	};
+
+	var splitEquipment = function(eq){
+		if(eq in craftTree){
+			return craftTree[eq];
+		}
+		return [];
+	};
+
+	var iterRun = function(eq){
+		if(eq in bank){
+			if(eq in used){
+				if(bank[eq]-used[eq]>0){
+					used[eq]+=1;
+					return [];
+				}
+			}else{
+				used[eq]=1;
+				return [];
+			}
+		}
+		if(eq in basic){
+			return [eq];
+		}else{
+			var seq = splitEquipment(eq), ret = [];
+			for(var i=0,l=seq.length;i<l;i++){
+				ret = ret.concat(iterRun(seq[i]));
+			}
+			if(ret.length==0){
+				craft.push(eq);
+			}
+			return ret;
+		}
+	};
+
+	var addOwnMaterial = function(){
+		if(elBankHead.style.cssText){
+			elBankHead.style.cssText = '';
+			elBank.style.cssText = '';
+			elBankSave.style.cssText = '';
+		}
+		var eq = elOwned.value, sz = ~~elNum.value;
+		if(bank[eq]){
+			bank[eq]+=sz;
+			elBank.querySelector('[data-eq="'+eq+'"]').innerHTML = eq+' x'+bank[eq]+' <a href="javascript:void(0)">[remove]</a>';
+		}else{
+			bank[eq]=sz;
+			var li = document.createElement('li');
+			li.innerHTML = eq+' x'+sz+' <a href="javascript:void(0)">[remove]</a>';
+			li.dataset.eq = eq;
+			elBank.appendChild(li);
+		}
+	};
+
+	var loadOwnMaterial = function(){
+		var lsb = localStorage['SavedBank'];
+		if(lsb){
+			lsb = JSON.parse(lsb);
+			if(elBank.childElementCount>0 && !confirm('This operate will overwrite your current bag data, are you sure?')){
+				return;
+			}
+			elBank.innerHTML = '';
+			bank = lsb;
+			if(elBankHead.style.cssText){
+				elBankHead.style.cssText = '';
+				elBank.style.cssText = '';
+				elBankSave.style.cssText = '';
+			}
+			for(var key in bank){
+				var li = document.createElement('li');
+				li.innerHTML = key+' x'+bank[key]+' <a href="javascript:void(0)">[remove]</a>';
+				li.dataset.eq = key;
+				elBank.appendChild(li);
+			}
+		}else{
+			alert('Savedata is empty.')
+		}
+	};
+
+	var saveOwnMaterial = function(){
+		localStorage['SavedBank'] = JSON.stringify(bank);
+		alert('Saved.')
+	};
+
+	var removeOwnMaterial = function(ev){
+		if(ev.target.tagName.toLowerCase() == 'a'){
+			var li = ev.target.parentNode;
+			var eq = li.dataset.eq;
+			delete bank[eq];
+			elBank.removeChild(li);
+			if(elBank.childElementCount==0){
+				elBankHead.style.display='none';
+				elBank.style.display='none';
+				elBankSave.style.display='none';
+			}
+		}
+	};
+
+	var showColletMaterial = function(){
+		var eq = elWant.value;
+		basic = {}, used = {}, craft = [];
+		for(var i=0,l=elBasic.children.length;i<l;i++){
+			var label = elBasic.children[i];
+			if(label.querySelector('input').checked){
+				basic[label.dataset.ma] = true;
+			}
+		}
+		var result = iterRun(eq), sorted = {}, htw = '';
+		if(elResultHead.style.cssText){
+			elResultHead.style.cssText = '';
+		}
+		if(result.length == 0){
+			htw = 'You had already owned this equipment!';
+		}else{
+			for(var i=0,l=result.length;i<l;i++){
+				if(result[i] in sorted){
+					sorted[result[i]]++;
+				}else{
+					sorted[result[i]]=1;
+				}
+			}
+			for(var key in sorted){
+				htw += '<strong>'+key+' x'+sorted[key]+'</strong>: '+dropItems[key].join(', ')+'<br />';
+			}
+			if(elResult2Head.style.cssText){
+				elResult2Head.style.cssText='';
+			}
+			var htw2 = '';
+			for(var key in used){
+				htw2 += key+' x'+used[key]+'<br />';
+				elResult2.innerHTML = htw2;
+			}
+			if(craft.length>0){
+				if(elResult3Head.style.cssText){
+					elResult3Head.style.cssText='';
+				}
+				var htw3 = '';
+				for(var i=0,l=craft.length;i<l;i++){
+					htw3 += '<strong>'+craft[i]+'</strong>: '+craftTree[craft[i]].join(' + ')+'<br />';
+				}
+				elResult3.innerHTML = htw3;
+			}else if(elResult3.innerHTML != ''){
+				elResult3Head.style.display = 'none';
+				elResult3.innerHTML = '';
+			}
+		}
+		elResult.innerHTML = htw;
+		window.scrollBy(0,800);
+	};
+
+	var initPage = function(){
+		for(var key in dropItems){
+			addBasical(key,true,!(key in craftTree));
+			elOwned.add(new Option(key));
+		}
+
+		for(var key in craftTree){
+			elWant.add(new Option(key));
+			if(!(key in dropItems)){
+				elOwned.add(new Option(key));
+			}
+		}
+
+		elAdd.addEventListener('click',addOwnMaterial,false);
+		elLoad.addEventListener('click',loadOwnMaterial,false);
+		elBank.addEventListener('click',removeOwnMaterial,false);
+		elBankSave.querySelector('a').addEventListener('click',saveOwnMaterial,false);
+		elShow.addEventListener('click',showColletMaterial,false);
+	};
+
+	var craftTree = {}, dropItems = {}, bank = {}, used = {}, craft = [], basic = {};
+
+	var loadCraftTreeUrl = 'equipment.json',
+		loaddropItemsUrl = 'material.json';
+
+	if(location.hash.replace('#','').toLowerCase()=='hl'){
+		loadCraftTreeUrl += '?t='+new Date().getTime();
+		loaddropItemsUrl += '?t='+new Date().getTime();
+	}
+
+	getJSON(loadCraftTreeUrl,function(data){
+		craftTree = data;
+		getJSON(loaddropItemsUrl,function(data){
+			dropItems = data;
+
+			initPage();
+		});
+	});
+</script>

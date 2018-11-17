@@ -1,0 +1,152 @@
+<!doctype html>
+<meta charset="utf-8" />
+
+<p>素材的名字：<input type="text" id="material-name" /> x<input type="number" id="material-quantity" value="1" style="width:33px" /> <button id="material-add">我插</button>
+<p>智能提示：<span id="ifc"></span>
+<p>现在的素材：
+<ul id="material-list"></ul>
+<p>分为<input type="number" id="table-col" value="3" style="width:22px" />列 <button id="table-create">创建</button>
+<script>
+	var getJSON = function(path,callback){
+		var xhr = new XMLHttpRequest();
+		xhr.onreadystatechange = function(){
+			if(xhr.readyState == 4){
+				if(xhr.status == 200){
+					var data = JSON.parse(xhr.responseText);
+					xhr = null;
+					callback(data);
+				}else{
+					xhr = null;
+					alert('READ JSON ERROR!');
+				}
+			}
+		}
+		xhr.open('get',path,true);
+		xhr.send();
+	};
+
+	var $ = function(selector,node){
+		if(node==undefined){node=document}
+		return node.querySelector(selector);
+	}, $create = function(tagname){
+		return document.createElement(tagname);
+	};
+
+	var elTextboxMaterialName = $('#material-name'),
+		elTextboxMaterialQuantity = $('#material-quantity'),
+		elButtonAdd = $('#material-add'),
+		elIFC = $('#ifc'),
+		elMaterialList = $('#material-list'),
+		elTextboxTableCol = $('#table-col'),
+		elButtonCreate = $('#table-create');
+
+	var getIFC = function(){
+		var k = elTextboxMaterialName.value;
+		if(k.length>0){
+			k=new RegExp(k,'i');
+			var ret = '', ct = 0;
+			for(var key in mData){
+				if(k.test(key) || k.test(mData[key].keyword)){
+					ret += '<a href="javascript:void(0)">'+key+'</a> ';
+					if(++ct>=10) break;
+				}
+			}
+			elIFC.innerHTML = ret;
+		}
+	};
+
+	var addMQ = function(){
+		var key = elTextboxMaterialName.value, qt = ~~elTextboxMaterialQuantity.value;
+		if(key in mData){
+			if(uList[key]){
+				uList[key]+=qt;
+				if(uList[key]>0){
+					$('[data-name="'+key+'"]',elMaterialList).innerHTML = key+' x'+uList[key]+' <a href="javascript:void(0)">[移除]</a>';
+				}else{
+					delete uList[key];
+					var li = $('[data-name="'+key+'"]',elMaterialList);
+					elMaterialList.removeChild(li);
+				}
+			}else{
+				uList[key]=qt;
+				var li = $create('li');
+				li.innerHTML = key+' x'+qt+' <a href="javascript:void(0)">[移除]</a>';
+				li.dataset.name = key;
+				elMaterialList.appendChild(li);
+			}
+		}else{
+			alert('没有这个素材');
+		}
+	};
+
+	var setMN = function(ev){
+		if(ev.target.tagName.toLowerCase() == 'a'){
+			elTextboxMaterialName.value = ev.target.innerHTML;
+			elIFC.innerHTML = '';
+		}
+	};
+
+	var removeMQ = function(ev){
+		if(ev.target.tagName.toLowerCase() == 'a'){
+			var li = ev.target.parentNode;
+			var key = li.dataset.name;
+			delete uList[key];
+			elMaterialList.removeChild(li);
+		}
+	};
+
+	var deleteTable = function(){
+		var elResult = $('#result');
+		if(elResult){
+			document.body.removeChild(elResult.nextElementSibling);
+			document.body.removeChild(elResult);
+		}
+		elResult = null;
+	};
+
+	var createTable = function(){
+		deleteTable();
+		var colSetting = ~~elTextboxTableCol.value;
+		if(colSetting<=0){colSetting=3};
+
+		var imgW = 140, pW = 2;
+		var elTable = $create('div'), htw = '';
+		elTable.style.cssText = 'overflow:hidden;background-color:rgb(159,78,43)';
+		elTable.style.padding = pW+'px '+(pW*2)+'px '+(pW*2)+'px '+pW+'px';
+		elTable.style.width = (imgW*colSetting+pW*colSetting*2)+'px';
+		for(var key in uList){
+			htw += '<div style="float:left;width:'+imgW+'px;margin-left:'+pW+'px;margin-top:'+pW+'px" title="'+mData[key]['evo-comment']+'"><img style="display:block" width="'+imgW+'" src="'+mData[key].img+'" /><div style="border:solid 1px rgb(117,87,64);background-color:rgb(31,21,20);color:#fff;text-align:center;">'+key+'<br/>'+uList[key]+'</div></div>';
+		}
+		elTable.innerHTML = htw;
+
+		var elResult = $create('h2');
+		elResult.id = 'result';
+		elResult.innerHTML = '复制下面的表格吧';
+		document.body.appendChild(elResult);
+		document.body.appendChild(elTable);
+	};
+
+	var initPage = function(){
+		elTextboxMaterialName.addEventListener('keyup',getIFC,false);
+		elButtonAdd.addEventListener('click',addMQ,false);
+		elIFC.addEventListener('click',setMN,false);
+		elMaterialList.addEventListener('click',removeMQ,false);
+		elButtonCreate.addEventListener('click',createTable,false);
+	};
+
+	var mData = {}, uList = {};
+
+	var loadMaterialUrl = 'material.json';
+
+	if(location.hash.replace('#','').toLowerCase()=='hl'){
+		loadMaterialUrl += '?t='+new Date().getTime();
+	}
+
+	getJSON(loadMaterialUrl,function(data){
+		for(var key in data){
+			mData[ data[key].name ] = data[key];
+		}
+
+		initPage();
+	});
+</script>
